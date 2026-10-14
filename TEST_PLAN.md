@@ -12,9 +12,9 @@
 
 ## 1. pytestの導入確認
 
-- 使用したpyenvの仮想環境名（`pyenv version` の結果）：`pyenv` コマンドが見つからず、仮想環境名は確認できなかった。作業時に使用したPython環境は `/home/kaho/venvs/dla`。
-- pytestを新たにinstallしたか：いいえ（今回の作業では新規installせず、既存環境で利用）
-- installした場合のcommand：該当なし
+- 使用したpyenvの仮想環境名（`pyenv version` の結果）：`practice-env`
+- pytestを新たにinstallしたか：はい（新しく作成した仮想環境にインストール）
+- installした場合のcommand：`python -m pip install -r requirements.txt`
 
 ```text
 $ cd ~/practice
@@ -25,27 +25,29 @@ $ python -m pytest --version
 pytest 9.1.1
 ```
 
-- `requirements.txt` に `pytest` を追記したか：いいえ
-- つまずいた点と対処（なければ「なし」）：`pyenv` コマンドが見つからなかったため、既に用意されているPython仮想環境 `/home/kaho/venvs/dla` で作業を継続した。pytest自体は正常に実行できた。課題文ではpyenvの仮想環境を使うよう指定されているため、必要に応じて授業の環境設定を確認する。
+- `requirements.txt` に `pytest` を追記したか：いいえ（最初から `pytest==9.1.1` が記載されていた）
+- つまずいた点と対処（なければ「なし」）：最初は `pyenv` コマンドが認識されなかった。`~/.bashrc` にpyenvの設定を追加して解決した。その後、Python 3.14.4をpyenvでインストールし、`practice-env` を作成した。`requirements.txt` のライブラリをインストールし、pytestが正常に実行できることを確認した。
 
 ---
-
 ## 2. 切り出し前のapp.pyの構造
 
 関数の一覧と、計算を行っている行を確認する。
 
 ```text
-$ grep -n "def " app.py
-（切り出し前のapp.pyでは、独立した関数定義は確認できなかった）
+$ git show cdffef8:app.py | grep -n "def "
+（出力なし。切り出し前のapp.pyには独立した関数定義がなかった）
 ```
 
 | 行 | code（要約） | 計算 / 表示 |
 |---|---|---|
-| 行番号の記録なし | 画像アップロードと画像サイズの取得・表示 | 入力・計算・表示 |
-| 行番号の記録なし | NumPyでRGB各チャンネルの平均値を計算 | 計算 |
-| 行番号の記録なし | RGBヒストグラムを作成してグラフ表示 | 計算・表示 |
+| 10～17 | 画像のアップロード、RGB形式への変換、画像表示 | 入力・変換・表示 |
+| 19～22 | 画像の幅・高さを表示し、NumPy配列へ変換 | 表示・データ変換 |
+| 24～26 | RGB各チャンネルの平均値を計算 | 計算 |
+| 28～31 | RGB平均値を小数点以下2桁で表示 | 表示 |
+| 33～48 | RGBヒストグラムの作成と各チャンネルの画素数集計 | 計算・グラフ作成 |
+| 50～56 | グラフの軸・タイトル・凡例を設定し、画面に表示して閉じる | 表示・後処理 |
 
-- testから直接呼べる計算用の関数はあったか：なかった。画像分析の計算処理が `app.py` 内にまとまっており、テストから直接呼べる独立した計算用関数はなかった。
+- testから直接呼べる計算用の関数はあったか：なかった。切り出し前の `app.py` では、RGB平均値の計算やヒストグラムの作成が直接記述されており、テストから直接呼び出せる独立した計算用関数はなかった。
 - 切り出し前のcommit ID：`cdffef8`（tag：`before-refactor`）
 
 ---
@@ -63,16 +65,64 @@ app.pyからはanalysis.pyの関数を呼び出す構成にしてください。
 ### AIの変更計画と人間の判断
 
 - AIの計画（要約）：RGB平均値とRGBヒストグラムの計算処理を `analysis.py` の関数に分離し、`app.py` から呼び出す構成にする。各関数をpytestで単独テストできるようにする。
-- 採用・修正した点と理由：計算処理を画面表示から分離し、`mean_rgb(image)` と `rgb_histograms(image)` を作成する方針を採用した。計算部分を個別にテストでき、不正な入力も確認できるため。ヒストグラムの描画方法は `ax.hist` から `ax.bar` に変更されたため、見た目の完全な一致は未確認とした。
+- 採用・修正した点と理由：計算処理を画面表示から分離し、`mean_rgb(image)` と `rgb_histograms(image)` を作成する方針を採用した。計算部分を個別にテストでき、不正な入力も確認できるため。ヒストグラムの描画方法は `ax.hist` から `ax.bar` に変更されたため、グラフの見た目の完全な一致までは確認していない。
 
 ### 変更内容
 
 ```text
-$ git diff -- app.py
-※変更時のgit diff全文は保存されていないため、以下は実際の出力そのものではなく変更内容の要約。
-- app.py内にまとまっていたRGB平均値とヒストグラムの計算処理を分離
-+ analysis.pyのmean_rgb(image)とrgb_histograms(image)をapp.pyから呼び出す構成に変更
-+ ヒストグラムの描画方法をax.histからax.barに変更
+$ git --no-pager diff cdffef8 aa09ec9 -- app.py
+diff --git a/app.py b/app.py
+index 494b64e..98b4204 100644
+--- a/app.py
++++ b/app.py
+@@ -1,9 +1,10 @@
+-
+ import streamlit as st
+ from PIL import Image
+ import numpy as np
+ import matplotlib.pyplot as plt
+
++from analysis import mean_rgb, rgb_histograms
++
+ st.title("画像分析アプリ")
+ st.write("画像をアップロードして、特徴を確認するアプリです。")
+
+@@ -21,9 +22,7 @@ if uploaded_file is not None:
+
+     image_array = np.array(image)
+
+-    red_mean = image_array[:, :, 0].mean()
+-    green_mean = image_array[:, :, 1].mean()
+-    blue_mean = image_array[:, :, 2].mean()
++    red_mean, green_mean, blue_mean = mean_rgb(image_array)
+
+     st.subheader("RGB平均値")
+     st.write(f"R（赤）の平均値：{red_mean:.2f}")
+     st.write(f"G（緑）の平均値：{green_mean:.2f}")
+     st.write(f"B（青）の平均値：{blue_mean:.2f}")
+@@ -36,15 +35,16 @@ if uploaded_file is not None:
+
+     colors = ["red", "green", "blue"]
+     labels = ["R（赤）", "G（緑）", "B（青）"]
++    histograms = rgb_histograms(image_array)
+
+-    for i, color in enumerate(colors):
+-        ax.hist(
+-            image_array[:, :, i].ravel(),
+-            bins=256,
+-            range=(0, 256),
++    for histogram, color, label in zip(histograms, colors, labels):
++        ax.bar(
++            np.arange(256),
++            histogram,
++            width=1.0,
+             color=color,
+             alpha=0.4,
+-            label=labels[i]
++            label=label
+         )
+
+     ax.set_xlabel("明るさ（0～255）")
 ```
 
 - 新しく作ったfileと関数：`analysis.py` に `mean_rgb(image)` と `rgb_histograms(image)` を作成した。また、`test_analysis.py` にそれらの関数を検証するテストを追加した。
@@ -93,23 +143,24 @@ $ git diff -- app.py
 - 切り出し後のcommit ID：`aa09ec9`（関数分離とテストの追加）
 
 ---
-
 ## 4. 対象関数と入力契約
 
 - 対象関数：`mean_rgb(image)`、`rgb_histograms(image)`
 - 定義場所：`analysis.py`
-- 入力（typeとshape）：NumPy配列（`ndarray`）、shapeは `(高さ, 幅, 3)`。最後の次元はRGBの順番。
-- 処理：`mean_rgb` は高さ・幅方向に平均を取り、R・G・Bそれぞれの平均画素値を計算する。`rgb_histograms` はRGBそれぞれについて画素値0～255の256ビンのヒストグラムを計算する。
-- 出力（typeとshape）：`mean_rgb` はR・G・Bの順の3要素のNumPy配列。`rgb_histograms` はRGB各チャンネルのヒストグラムを格納したリスト。
-- 例外（契約違反の入力と発生させる例外）：入力が3次元でない場合、または最後の次元が3チャンネルでない場合は `ValueError`。
+- 入力（typeとshape）：NumPy配列（`numpy.ndarray`）、shapeは `(高さ, 幅, 3)`。高さ方向・幅方向に画素が並び、最後の次元はRGBの順番である。
+- 処理：`mean_rgb(image)` は高さ方向と幅方向に平均を取り、R・G・Bそれぞれの平均画素値を計算する。`rgb_histograms(image)` はRGBそれぞれについて、画素値0～255の256ビンのヒストグラムを計算する。
+- 出力（typeとshape）：`mean_rgb(image)` はR・G・Bの順に平均値を格納した3要素のNumPy配列（shape `(3,)`）を返す。`rgb_histograms(image)` はRGB各チャンネルのヒストグラムを順に格納したリストを返す。リストの各要素は256要素のNumPy配列である。
+- 例外（契約違反の入力と発生させる例外）：入力配列が3次元でない場合、または最後の次元が3チャンネルでない場合は `ValueError` を発生させる。
 
 ```python
 import numpy as np
+
 
 def mean_rgb(image):
     """RGB画像の各チャンネルの平均値を返す。"""
     if image.ndim != 3 or image.shape[2] != 3:
         raise ValueError("RGB image [H,W,3] required")
+
     return image.mean(axis=(0, 1))
 
 
@@ -117,15 +168,19 @@ def rgb_histograms(image):
     """RGB画像の各チャンネルのヒストグラムを返す。"""
     if image.ndim != 3 or image.shape[2] != 3:
         raise ValueError("RGB image [H,W,3] required")
+
     histograms = []
+
     for i in range(3):
         histogram, _ = np.histogram(
-            image[:, :, i], bins=256, range=(0, 256)
+            image[:, :, i],
+            bins=256,
+            range=(0, 256)
         )
         histograms.append(histogram)
+
     return histograms
 ```
-
 ---
 
 ## 5. test case一覧
@@ -236,13 +291,12 @@ $ python -m pytest -q
 結果: 1 failed, 5 passed
 ```
 
-- bugを戻した後の結果：`mean_rgb` の戻り値を正しいRGB順に戻した。平均値のテスト6件が成功し、その後ヒストグラムのテストも含む9件すべてが成功した。
+- bugを戻した後の結果：`mean_rgb` の戻り値を正しいRGB順に戻した。その後、ヒストグラムのテストも追加した状態で、9件すべてのテストが成功した。以下は以前の実行結果であり、現在の仮想環境での最新結果は第7節に記載した。
 
 ```text
 .........                                                                [100%]
 9 passed in 0.36s
 ```
-
 ---
 
 ## 9. AI提案の採否
@@ -258,7 +312,7 @@ $ python -m pytest -q
 
 ## 提出前の確認
 
-- [ ] `pyenv version` と `pytest --version` の結果を書いた
+- [x] `pyenv version` と `pytest --version` の結果を書いた
 - [x] 切り出し前のapp.pyで、計算と表示の行を区別した（正確な行番号は記録なし）
 - [x] 切り出しのpromptと `git diff` を貼った（diff全文ではなく、変更内容の要約であることを明記）
 - [x] 切り出し前後で同じ画像のRGB平均値が一致することを確認した
