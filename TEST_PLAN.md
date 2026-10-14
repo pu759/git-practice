@@ -274,16 +274,28 @@ def test_mean_rgb_invalid_channel_count_raises_error():
 
 ## 7. テスト実行結果
 
-### 7.1 最終的なテスト結果
+### ### 7.1 最終的なテスト結果
 
-`python -m pytest -v` を実行し、9件すべてが成功した。
+`python -m pytest -v` を実行し、9件すべてのテストが成功したことを確認した。
 
 ```text
-platform linux -- Python 3.14.4, pytest-9.1.1
+platform linux -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0
+plugins: anyio-4.15.1
 collected 9 items
-all 9 tests PASSED
-=========================== 9 passed in 0.31s ===========================
+
+test_analysis.py::test_mean_rgb_one_pixel PASSED
+test_analysis.py::test_mean_rgb_multiple_pixels PASSED
+test_analysis.py::test_mean_rgb_all_zeros PASSED
+test_analysis.py::test_mean_rgb_all_255 PASSED
+test_analysis.py::test_mean_rgb_grayscale_raises_error PASSED
+test_analysis.py::test_rgb_histograms_one_pixel PASSED
+test_analysis.py::test_rgb_histograms_include_boundaries_and_count_all_pixels PASSED
+test_analysis.py::test_rgb_histograms_invalid_channel_count_raises_error PASSED
+test_analysis.py::test_mean_rgb_invalid_channel_count_raises_error PASSED
+
+=========================== 9 passed in 0.36s ===========================
 ```
+
 
 ### 7.2 結果の考察
 
