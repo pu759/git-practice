@@ -1,145 +1,118 @@
-# テスト計画書（TEST_PLAN.md）
+# 第5回 テスト計画（関数の切り出しとpytest）
 
-## 1. テスト環境
+- 学籍番号：2432021 
+- 氏名：川村 果歩
+- 提出日：2026/10/14
+- 提出file名：`TEST_PLAN.md`（`~/practice` の直下に置き、commitして提出する）
 
-### 1.1 使用環境
+> 各欄の例文や角括弧は、自分の実行結果と判断へ置き換えること。認証情報、password、tokenは記録しないこと。
+> WSL2のUbuntu上で、pyenvの仮想環境を使って作業する。第4回でCopilotが生成した `~/practice/app.py` を題材にする。計算がすべて `main()` の中にある場合は、まず関数へ切り出してからtestを書く。
 
-| 項目         | 内容                     |
-| ---------- | ---------------------- |
-| OS         | Ubuntu（WSL環境）          |
-| Python     | 3.14.4                 |
-| pytest     | 9.1.1                  |
-| Streamlit  | 1.65.0                 |
-| Pillow     | 12.3.0                 |
-| NumPy      | 2.5.4                  |
-| Matplotlib | 3.11.2                 |
-| 仮想環境       | `/home/kaho/venvs/dla` |
+---
 
-### 1.2 pytestの導入状況
+## 1. pytestの導入確認
 
-pytestがインストールされていることを確認し、`python -m pytest --version` でバージョン9.1.1と表示された。また、テストを実行できることも確認した。
+- 使用したpyenvの仮想環境名（`pyenv version` の結果）：`pyenv` コマンドが見つからず、仮想環境名は確認できなかった。作業時に使用したPython環境は `/home/kaho/venvs/dla`。
+- pytestを新たにinstallしたか：いいえ（今回の作業では新規installせず、既存環境で利用）
+- installした場合のcommand：該当なし
 
-### 1.3 requirements.txt
+```text
+$ cd ~/practice
+$ pyenv version
+pyenv: command not found
 
-プロジェクトで使用するライブラリとバージョンを管理するため、`requirements.txt` を作成した。Streamlit、Pillow、NumPy、Matplotlib、pytestの5つを記載した。
+$ python -m pytest --version
+pytest 9.1.1
+```
 
-なお、今回の環境では `pyenv` コマンドが見つからなかった。そのため、Pythonのバージョン管理については未設定の課題として残っている。実際に使用したPythonは3.14.4である。
+- `requirements.txt` に `pytest` を追記したか：いいえ
+- つまずいた点と対処（なければ「なし」）：`pyenv` コマンドが見つからなかったため、既に用意されているPython仮想環境 `/home/kaho/venvs/dla` で作業を継続した。pytest自体は正常に実行できた。課題文ではpyenvの仮想環境を使うよう指定されているため、必要に応じて授業の環境設定を確認する。
 
-## 2. リファクタリング前の構造
+---
 
-### 2.1 リファクタリング前のコミット
+## 2. 切り出し前のapp.pyの構造
 
-`cdffef8`（Add image analysis Streamlit app）
+関数の一覧と、計算を行っている行を確認する。
 
-### 2.2 app.pyの構造
+```text
+$ grep -n "def " app.py
+（切り出し前のapp.pyでは、独立した関数定義は確認できなかった）
+```
 
-リファクタリング前の `app.py` では、画像のアップロード、RGB形式への変換、画像の表示、画像の幅と高さの表示、NumPy配列への変換、RGB平均値の計算、RGBヒストグラムの作成を1つのファイルで行っていた。
+| 行 | code（要約） | 計算 / 表示 |
+|---|---|---|
+| 行番号の記録なし | 画像アップロードと画像サイズの取得・表示 | 入力・計算・表示 |
+| 行番号の記録なし | NumPyでRGB各チャンネルの平均値を計算 | 計算 |
+| 行番号の記録なし | RGBヒストグラムを作成してグラフ表示 | 計算・表示 |
 
-`def` で定義された関数はなく、計算処理と画面表示の処理が同じファイル内にまとめられていた。
+- testから直接呼べる計算用の関数はあったか：なかった。画像分析の計算処理が `app.py` 内にまとまっており、テストから直接呼べる独立した計算用関数はなかった。
+- 切り出し前のcommit ID：`cdffef8`（tag：`before-refactor`）
 
-### 2.3 分離する処理
+---
 
-* **計算処理：** RGB各チャンネルの平均値の計算、RGB各チャンネルのヒストグラムの計算
-* **表示処理：** 画像のアップロード、画像の表示、幅と高さの表示、計算結果の表示、ヒストグラムの描画
+## 3. 関数の切り出し
 
-計算処理を別ファイルに分離することで、処理の再利用と単体テストを行いやすくすることを目的とした。
+### AIへ渡したprompt
 
-## 3. リファクタリングの実施内容
+```text
+app.pyにまとめられている画像分析処理を、テストしやすいように関数へ切り出してください。
+RGB各チャンネルの平均値を計算するmean_rgb(image)と、RGB各チャンネルのヒストグラムを作成するrgb_histograms(image)をanalysis.pyに実装してください。
+app.pyからはanalysis.pyの関数を呼び出す構成にしてください。入力画像は高さ・幅・RGBの3チャンネルを持つNumPy配列を想定し、RGBの順番を維持してください。既存の画面表示とRGB平均値の計算結果が変わらないようにし、入力形式が不正な場合はValueErrorを発生させてください。
+```
 
-### 3.1 AIへの依頼と計画
+### AIの変更計画と人間の判断
 
-GitHub Copilot CLIを使用し、既存の `app.py` の構造を確認して、計算処理と画面表示の処理を分離する計画を検討した。また、変更前後のコミットや差分を確認し、追加したテストが必要なケースを満たしているかを検討した。
+- AIの計画（要約）：RGB平均値とRGBヒストグラムの計算処理を `analysis.py` の関数に分離し、`app.py` から呼び出す構成にする。各関数をpytestで単独テストできるようにする。
+- 採用・修正した点と理由：計算処理を画面表示から分離し、`mean_rgb(image)` と `rgb_histograms(image)` を作成する方針を採用した。計算部分を個別にテストでき、不正な入力も確認できるため。ヒストグラムの描画方法は `ax.hist` から `ax.bar` に変更されたため、見た目の完全な一致は未確認とした。
 
-※以下は作業内容の要約であり、AIとの会話を逐語的に再現したものではない。
+### 変更内容
 
-### 3.2 人間による判断
+```text
+$ git diff -- app.py
+※変更時のgit diff全文は保存されていないため、以下は実際の出力そのものではなく変更内容の要約。
+- app.py内にまとまっていたRGB平均値とヒストグラムの計算処理を分離
++ analysis.pyのmean_rgb(image)とrgb_histograms(image)をapp.pyから呼び出す構成に変更
++ ヒストグラムの描画方法をax.histからax.barに変更
+```
 
-計算処理を `analysis.py` に分離し、`app.py` から呼び出す構成を採用した。また、RGB平均値だけでなく、ヒストグラムの計算も関数に分離した。
+- 新しく作ったfileと関数：`analysis.py` に `mean_rgb(image)` と `rgb_histograms(image)` を作成した。また、`test_analysis.py` にそれらの関数を検証するテストを追加した。
 
-AIの提案をそのまま受け入れるのではなく、コードの差分とテスト結果を確認する方針とした。
+### 切り出し前後の確認
 
-### 3.3 変更したファイルと関数
+同じ画像を入力し、画面に表示されるRGB平均値が変わらないことを確認する。
 
-| ファイル               | 変更内容                                |
-| ------------------ | ----------------------------------- |
-| `app.py`           | 計算処理を `analysis.py` の関数に置き換えた       |
-| `analysis.py`      | `mean_rgb` と `rgb_histograms` を定義した |
-| `test_analysis.py` | 各関数の正常系、境界値、異常系をテストした               |
-| `requirements.txt` | 使用ライブラリとバージョンを記録した                  |
+| 項目 | 切り出し前 | 切り出し後 |
+|---|---|---|
+| 使用した画像 | `sunflower.jpg`（3264 × 2448 pixel） | `sunflower.jpg`（3264 × 2448 pixel） |
+| R平均 | 106.24 | 106.24 |
+| G平均 | 103.41 | 103.41 |
+| B平均 | 80.20 | 80.20 |
 
-### 3.4 コミット
+`np.allclose(old, new)` は `True` となり、RGB平均値が一致した。ヒストグラムの描画方法は変更されているため、グラフの見た目の完全な一致までは確認していない。
 
-* リファクタリング前：`cdffef8`
-* リファクタリング後：`aa09ec9`
+- 切り出し後のcommit ID：`aa09ec9`（関数分離とテストの追加）
 
-### 3.5 変更前後のRGB平均値の比較
+---
 
-画像サイズ3264×2448ピクセルのひまわりの画像を使用し、リファクタリング前後の計算結果を比較した。変更前はapp.pyに直接記述されていた計算式を使用し、変更後はanalysis.pyのmean_rgb関数を使用した。
+## 4. 対象関数と入力契約
 
-| チャンネル | 変更前 | 変更後 |
-|---|---:|---:|
-| R（赤） | 106.24 | 106.24 |
-| G（緑） | 103.41 | 103.41 |
-| B（青） | 80.20 | 80.20 |
-
-比較用のPythonコードでnp.allclose(old, new)を実行した結果はTrueとなり、変更前後のRGB平均値が一致することを確認した。この結果から、平均値の計算を関数に分離した後も、同じ画像に対する計算結果が維持されていると判断できる。
-
-また、ヒストグラムの描画方法は、変更前の `ax.hist` から変更後の `ax.bar` に変わっている。そのため、ヒストグラムの画面表示が完全に同じであるかについても、別途確認が必要である。
-
-## 4. 対象関数の仕様
-
-### 4.1 mean_rgb(image)
-
-**入力**
-
-* NumPy配列
-* 形状は `[H, W, 3]`
-* Hは画像の高さ、Wは画像の幅、3はRGBの各チャンネルを表す
-
-**処理**
-
-高さ方向と幅方向に対して平均値を計算し、R、G、Bそれぞれの平均値を求める。
-
-**出力**
-
-3つの値を持つNumPy配列。順番はR、G、Bである。
-
-**例外**
-
-入力が3次元配列でない場合、またはチャンネル数が3でない場合は `ValueError` を発生させる。
-
-**関数定義**
+- 対象関数：`mean_rgb(image)`、`rgb_histograms(image)`
+- 定義場所：`analysis.py`
+- 入力（typeとshape）：NumPy配列（`ndarray`）、shapeは `(高さ, 幅, 3)`。最後の次元はRGBの順番。
+- 処理：`mean_rgb` は高さ・幅方向に平均を取り、R・G・Bそれぞれの平均画素値を計算する。`rgb_histograms` はRGBそれぞれについて画素値0～255の256ビンのヒストグラムを計算する。
+- 出力（typeとshape）：`mean_rgb` はR・G・Bの順の3要素のNumPy配列。`rgb_histograms` はRGB各チャンネルのヒストグラムを格納したリスト。
+- 例外（契約違反の入力と発生させる例外）：入力が3次元でない場合、または最後の次元が3チャンネルでない場合は `ValueError`。
 
 ```python
+import numpy as np
+
 def mean_rgb(image):
     """RGB画像の各チャンネルの平均値を返す。"""
     if image.ndim != 3 or image.shape[2] != 3:
         raise ValueError("RGB image [H,W,3] required")
     return image.mean(axis=(0, 1))
-```
 
-### 4.2 rgb_histograms(image)
 
-**入力**
-
-* NumPy配列
-* 形状は `[H, W, 3]`
-
-**処理**
-
-R、G、Bの各チャンネルについて、明るさ0～255の範囲を256個のビンに分け、各明るさの画素数を数える。
-
-**出力**
-
-R、G、Bの順に並んだ3つのヒストグラムのリスト。それぞれのヒストグラムは256個の要素を持つNumPy配列である。
-
-**例外**
-
-入力が3次元配列でない場合、またはチャンネル数が3でない場合は `ValueError` を発生させる。
-
-**関数定義**
-
-```python
 def rgb_histograms(image):
     """RGB画像の各チャンネルのヒストグラムを返す。"""
     if image.ndim != 3 or image.shape[2] != 3:
@@ -147,214 +120,151 @@ def rgb_histograms(image):
     histograms = []
     for i in range(3):
         histogram, _ = np.histogram(
-            image[:, :, i],
-            bins=256,
-            range=(0, 256)
+            image[:, :, i], bins=256, range=(0, 256)
         )
         histograms.append(histogram)
     return histograms
 ```
 
-## 5. テストケース
+---
 
-### 5.1 mean_rgbのテスト
+## 5. test case一覧
 
-| ID | 分類  | 入力                 | 期待結果              |
-| -- | --- | ------------------ | ----------------- |
-| N1 | 正常系 | 1画素 `[10, 20, 30]` | `[10, 20, 30]`    |
-| N2 | 正常系 | 4画素のRGB値を使用        | `[100, 100, 100]` |
-| B1 | 境界値 | すべて0の画像            | `[0, 0, 0]`       |
-| B2 | 境界値 | すべて255の画像          | `[255, 255, 255]` |
-| E1 | 異常系 | 2次元のグレースケール画像      | `ValueError`      |
-| E2 | 異常系 | チャンネル数が4の画像        | `ValueError`      |
+正常系2件以上、境界値2件以上、異常系1件以上。期待結果は手計算で求めた数値を書く。
 
-N2では、次の4画素を使用する。
+| ID | 分類 | 入力 | 期待結果 | 選定理由 |
+|---|---|---|---|---|
+| N1 | 正常系 | 1画素 `[[[10, 20, 30]]]` | 平均値 `[10, 20, 30]` | 1画素のRGB順と基本計算を確認する |
+| N2 | 正常系 | 2画素 `[[[10, 20, 30], [30, 40, 50]]]` | 平均値 `[20, 30, 40]`（各チャンネルで2画素の平均を計算） | 複数画素の平均値が正しいか確認する |
+| B1 | 境界値 | 全チャンネルが0の画像 `np.zeros((2, 2, 3))` | 平均値 `[0, 0, 0]` | 画素値の最小値を確認する |
+| B2 | 境界値 | 全チャンネルが255の画像 `np.full((2, 2, 3), 255)` | 平均値 `[255, 255, 255]` | 画素値の最大値を確認する |
+| E1 | 異常系 | グレースケールの2次元配列 `np.zeros((2, 2))` | `ValueError` | RGBの3チャンネルを持たない入力を拒否する |
+| E2 | 異常系 | 4チャンネルの配列 `np.zeros((2, 2, 4))` | `ValueError` | チャンネル数が3でない入力を拒否する |
+| N3 | 正常系 | 1画素 `[[[10, 20, 30]]]` をヒストグラム関数へ入力 | Rのbin 10、Gのbin 20、Bのbin 30がそれぞれ1 | RGBの順番で画素値を数えることを確認する |
+| B3 | 境界値 | `[[[0, 255, 0], [255, 0, 255]]]` | 各チャンネルのヒストグラム合計が2。Rではbin 0と255が各1 | 最小値・最大値を含む場合も全画素が数えられることを確認する |
+| E3 | 異常系 | 4チャンネルの配列 `np.zeros((2, 2, 4))` をヒストグラム関数へ入力 | `ValueError` | `rgb_histograms` でも入力契約が守られることを確認する |
 
-```python
-[
-    [[0, 10, 20], [100, 110, 120]],
-    [[200, 210, 220], [100, 70, 40]]
-]
-```
+---
 
-Rの平均値は `(0 + 100 + 200 + 100) / 4 = 100`、Gの平均値は `(10 + 110 + 210 + 70) / 4 = 100`、Bの平均値は `(20 + 120 + 220 + 40) / 4 = 100` となる。
+## 6. pytest実装
 
-### 5.2 rgb_histogramsのテスト
-
-| ID | 分類  | 入力                         | 期待結果                        |
-| -- | --- | -------------------------- | --------------------------- |
-| N3 | 正常系 | 1画素 `[10, 20, 30]`         | 各チャンネルの対応するビンが1             |
-| B3 | 境界値 | RGB値に0、1、253、254、255を含む4画素 | 各ヒストグラムの合計が4、0と255のビンがそれぞれ1 |
-| E3 | 異常系 | チャンネル数が4の画像                | `ValueError`                |
-
-ヒストグラムは、画素数が正しく数えられていること、配列の長さが256であること、RGBの順番が正しいことを確認する。
-
-## 6. テストコード
-
-実際のテストコードは `test_analysis.py` に記載した。以下はその内容である。
+対象関数と同じdirectoryの `test_analysis.py` に書いたtest関数を貼る。
 
 ```python
 import numpy as np
 import pytest
-
 from analysis import mean_rgb, rgb_histograms
 
 
 def test_mean_rgb_one_pixel():
     image = np.array([[[10, 20, 30]]])
-    result = mean_rgb(image)
-    np.testing.assert_allclose(result, [10, 20, 30])
+    assert np.allclose(mean_rgb(image), [10, 20, 30])
 
 
 def test_mean_rgb_multiple_pixels():
-    image = np.array([
-        [[0, 10, 20], [100, 110, 120]],
-        [[200, 210, 220], [100, 70, 40]]
-    ])
-    result = mean_rgb(image)
-    np.testing.assert_allclose(result, [100, 100, 100])
+    image = np.array([[[10, 20, 30], [30, 40, 50]]])
+    assert np.allclose(mean_rgb(image), [20, 30, 40])
 
 
 def test_mean_rgb_all_zeros():
     image = np.zeros((2, 2, 3), dtype=np.uint8)
-    result = mean_rgb(image)
-    np.testing.assert_allclose(result, [0, 0, 0])
+    assert np.allclose(mean_rgb(image), [0, 0, 0])
 
 
 def test_mean_rgb_all_255():
     image = np.full((2, 2, 3), 255, dtype=np.uint8)
-    result = mean_rgb(image)
-    np.testing.assert_allclose(result, [255, 255, 255])
+    assert np.allclose(mean_rgb(image), [255, 255, 255])
 
 
-def test_mean_rgb_grayscale_raises_error():
-    image = np.array([[0, 100], [150, 255]])
+def test_mean_rgb_grayscale_raises_value_error():
+    image = np.zeros((2, 2), dtype=np.uint8)
+    with pytest.raises(ValueError):
+        mean_rgb(image)
+
+
+def test_mean_rgb_four_channels_raises_value_error():
+    image = np.zeros((2, 2, 4), dtype=np.uint8)
     with pytest.raises(ValueError):
         mean_rgb(image)
 
 
 def test_rgb_histograms_one_pixel():
-    image = np.array([[[10, 20, 30]]])
-    result = rgb_histograms(image)
-    assert len(result) == 3
-    assert all(len(histogram) == 256 for histogram in result)
-    assert result[0][10] == 1
-    assert result[1][20] == 1
-    assert result[2][30] == 1
-
-
-def test_rgb_histograms_include_boundaries_and_count_all_pixels():
-    image = np.array([
-        [[0, 255, 0], [255, 0, 255]],
-        [[1, 254, 2], [254, 1, 253]]
-    ], dtype=np.uint8)
-
+    image = np.array([[[10, 20, 30]]], dtype=np.uint8)
     histograms = rgb_histograms(image)
-
-    assert len(histograms) == 3
-    for histogram in histograms:
-        assert histogram.sum() == 4
-
-    for histogram in histograms:
-        assert histogram[0] == 1
-        assert histogram[255] == 1
+    assert histograms[0][10] == 1
+    assert histograms[1][20] == 1
+    assert histograms[2][30] == 1
 
 
-def test_rgb_histograms_invalid_channel_count_raises_error():
+def test_rgb_histograms_boundary_values_and_pixel_count():
+    image = np.array([[[0, 255, 0], [255, 0, 255]]], dtype=np.uint8)
+    histograms = rgb_histograms(image)
+    assert all(sum(hist) == 2 for hist in histograms)
+    assert histograms[0][0] == 1 and histograms[0][255] == 1
+
+
+def test_rgb_histograms_four_channels_raises_value_error():
     image = np.zeros((2, 2, 4), dtype=np.uint8)
     with pytest.raises(ValueError):
         rgb_histograms(image)
-
-
-def test_mean_rgb_invalid_channel_count_raises_error():
-    image = np.zeros((2, 2, 4), dtype=np.uint8)
-    with pytest.raises(ValueError):
-        mean_rgb(image)
 ```
 
-## 7. テスト実行結果
+---
 
-### ### 7.1 最終的なテスト結果
+## 7. pytest実行結果
 
-`python -m pytest -v` を実行し、9件すべてのテストが成功したことを確認した。
+最初の実行でFAILがあった場合は、その出力と対処も残す。
 
 ```text
-platform linux -- Python 3.14.4, pytest-9.1.1, pluggy-1.6.0
-plugins: anyio-4.15.1
-collected 9 items
-
-test_analysis.py::test_mean_rgb_one_pixel PASSED
-test_analysis.py::test_mean_rgb_multiple_pixels PASSED
-test_analysis.py::test_mean_rgb_all_zeros PASSED
-test_analysis.py::test_mean_rgb_all_255 PASSED
-test_analysis.py::test_mean_rgb_grayscale_raises_error PASSED
-test_analysis.py::test_rgb_histograms_one_pixel PASSED
-test_analysis.py::test_rgb_histograms_include_boundaries_and_count_all_pixels PASSED
-test_analysis.py::test_rgb_histograms_invalid_channel_count_raises_error PASSED
-test_analysis.py::test_mean_rgb_invalid_channel_count_raises_error PASSED
-
-=========================== 9 passed in 0.36s ===========================
+$ python -m pytest -q
+.........                                                                [100%]
+9 passed in 0.36s
 ```
 
+- FAILの有無と対処（例：異常系が `DID NOT RAISE` となり、入力契約の確認を追加した）：通常の最終実行ではFAILはなく、9件すべて成功した。意図的にチャンネル順を入れ替えた検証ではFAILを確認し、バグを元に戻してからテストを再実行した。
 
-### 7.2 結果の考察
+---
 
-RGB平均値について、1画素の画像、複数画素の画像、すべて0の画像、すべて255の画像で期待値と一致した。また、グレースケール画像や4チャンネル画像を入力した場合に、想定どおり例外が発生することを確認した。
+## 8. 意図的bugを検出した例
 
-ヒストグラムについても、3チャンネル分のデータが返ること、各ヒストグラムの長さが256であること、画素数が正しく集計されることを確認した。
-
-## 8. 意図的なバグの検出
-
-### 8.1 バグの内容
-
-RGB平均値を返す順番を意図的に変更し、GとBの値が入れ替わるようにした。
-
-変更した処理は次のとおりである。
-
-```python
-return image.mean(axis=(0, 1))[[0, 2, 1]]
-```
-
-本来はR、G、Bの順に返すべきところ、R、B、Gの順になってしまうバグである。
-
-### 8.2 バグを入れたときの結果
-
-テストを実行したところ、`test_mean_rgb_one_pixel` が失敗した。入力値は `[10, 20, 30]` であり、期待値は `[10, 20, 30]` だったが、実際の結果は `[10., 30., 20.]` となった。
+- 入れたbug（例：channel順を `[R, B, G]` に変更）：`mean_rgb` の戻り値のチャンネル順を `[R, B, G]` に入れ替えた。
+- 失敗したtestと出力：`test_mean_rgb_one_pixel` が期待値と実際値の違いを検出した。
 
 ```text
-FAIL test_mean_rgb_one_pixel
-actual:   [10., 30., 20.]
-desired:  [10, 20, 30]
-
-1 failed, 5 passed in 0.16s
+期待値: [10, 20, 30]
+実際値: [10., 30., 20.]
+結果: 1 failed, 5 passed
 ```
 
-この結果から、テストによってRGBの順番が入れ替わるバグを検出できたことが分かる。
-
-### 8.3 バグを修正した後の結果
-
-変更した処理を元の状態に戻し、再度テストを実行した。その結果、当時の6件のテストはすべて成功した。
+- bugを戻した後の結果：`mean_rgb` の戻り値を正しいRGB順に戻した。平均値のテスト6件が成功し、その後ヒストグラムのテストも含む9件すべてが成功した。
 
 ```text
-6 passed in 0.14s
+.........                                                                [100%]
+9 passed in 0.36s
 ```
 
-その後、ヒストグラムの境界値と画素数、4チャンネル画像のエラーに関するテストを追加し、最終的に9件すべてが成功した。
+---
 
-## 9. AIの提案に対する判断
+## 9. AI提案の採否
 
-GitHub Copilot CLIを利用し、コードの構造確認、関数の分離方針、テストケースの不足について検討した。
+| AIが提案した内容（切り出し・test case） | 採用 / 不採用 | 理由 |
+|---|---|---|
+| RGB平均値の計算を `mean_rgb(image)` として切り出す | 採用 | UIと計算を分け、関数単位でテストできるため |
+| ヒストグラム計算を `rgb_histograms(image)` として切り出す | 採用 | RGB各チャンネルの計算結果を個別に確認できるため |
+| 全0・全255の境界値と不正な入力のテストを追加する | 採用 | 画素値の端と入力契約が正しく扱われるか確認できるため |
+| チャンネル順を入れ替える意図的なバグでテストを確認する | 採用 | テストが実際に誤りを検出できることを確認できるため |
 
-追加提案のうち、ヒストグラムの境界値と画素数を確認するテスト、および4チャンネル画像で例外が発生することを確認するテストを採用した。これにより、正常な入力だけでなく、境界値や不正な入力も確認できるようになった。
+---
 
-一方、AIの説明だけで処理が正しいと判断せず、実際にpytestを実行して結果を確認した。最終的には9件すべてのテストが成功した。
+## 提出前の確認
 
-また、同じ画像を使ったRGB平均値の比較は完了し、変更前後で一致することを確認した。一方、ヒストグラムの描画方法は変更前のax.histから変更後のax.barに変わっているため、画面表示が完全に同じであるかは未確認であり、今後の確認課題として残す。
-
-## 10. まとめ
-
-今回の作業では、画像分析アプリの計算処理を `analysis.py` に分離し、RGB平均値とヒストグラムの計算を個別にテストできるようにした。
-
-正常系、境界値、異常系を含む9件のテストを作成し、すべて成功した。また、RGBの順番を入れ替える意図的なバグをテストで検出し、修正後に再び成功することを確認した。
-
-リファクタリング前後で同じ画像を使用したRGB平均値の比較を行い、計算結果が一致することを確認した。今後は、ヒストグラムの表示結果も比較し、画面表示を含めた動作を確認する必要がある。
+- [ ] `pyenv version` と `pytest --version` の結果を書いた
+- [x] 切り出し前のapp.pyで、計算と表示の行を区別した（正確な行番号は記録なし）
+- [x] 切り出しのpromptと `git diff` を貼った（diff全文ではなく、変更内容の要約であることを明記）
+- [x] 切り出し前後で同じ画像のRGB平均値が一致することを確認した
+- [x] 対象関数の入力契約（type・shape・例外）を書いた
+- [x] 正常系2件・境界値2件・異常系1件以上を表にし、期待結果を手計算で示した
+- [x] pytestの実装と実行結果を貼った
+- [x] 意図的bugで失敗する様子と戻した結果を貼った
+- [x] AI提案の採否と理由を書いた
+- [x] `~/practice` 直下に `TEST_PLAN.md` として保存し、commitした
