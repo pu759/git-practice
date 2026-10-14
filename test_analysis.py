@@ -56,3 +56,34 @@ def test_rgb_histograms_one_pixel():
     assert result[0][10] == 1
     assert result[1][20] == 1
     assert result[2][30] == 1
+
+
+def test_rgb_histograms_include_boundaries_and_count_all_pixels():
+    image = np.array([
+        [[0, 255, 0], [255, 0, 255]],
+        [[1, 254, 2], [254, 1, 253]]
+    ], dtype=np.uint8)
+
+    histograms = rgb_histograms(image)
+
+    assert len(histograms) == 3
+    for histogram in histograms:
+        assert histogram.sum() == 4
+
+    for histogram in histograms:
+        assert histogram[0] == 1
+        assert histogram[255] == 1
+
+
+def test_rgb_histograms_invalid_channel_count_raises_error():
+    image = np.zeros((2, 2, 4), dtype=np.uint8)
+
+    with pytest.raises(ValueError):
+        rgb_histograms(image)
+
+
+def test_mean_rgb_invalid_channel_count_raises_error():
+    image = np.zeros((2, 2, 4), dtype=np.uint8)
+
+    with pytest.raises(ValueError):
+        mean_rgb(image)
