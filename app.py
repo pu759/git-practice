@@ -1,8 +1,9 @@
-
 import streamlit as st
 from PIL import Image
 import numpy as np
 import matplotlib.pyplot as plt
+
+from analysis import mean_rgb, rgb_histograms
 
 st.title("画像分析アプリ")
 st.write("画像をアップロードして、特徴を確認するアプリです。")
@@ -21,9 +22,7 @@ if uploaded_file is not None:
 
     image_array = np.array(image)
 
-    red_mean = image_array[:, :, 0].mean()
-    green_mean = image_array[:, :, 1].mean()
-    blue_mean = image_array[:, :, 2].mean()
+    red_mean, green_mean, blue_mean = mean_rgb(image_array)
 
     st.subheader("RGB平均値")
     st.write(f"R（赤）の平均値：{red_mean:.2f}")
@@ -36,15 +35,16 @@ if uploaded_file is not None:
 
     colors = ["red", "green", "blue"]
     labels = ["R（赤）", "G（緑）", "B（青）"]
+    histograms = rgb_histograms(image_array)
 
-    for i, color in enumerate(colors):
-        ax.hist(
-            image_array[:, :, i].ravel(),
-            bins=256,
-            range=(0, 256),
+    for histogram, color, label in zip(histograms, colors, labels):
+        ax.bar(
+            np.arange(256),
+            histogram,
+            width=1.0,
             color=color,
             alpha=0.4,
-            label=labels[i]
+            label=label
         )
 
     ax.set_xlabel("明るさ（0～255）")
