@@ -19,7 +19,7 @@
 ```text
 $ cd ~/practice
 $ pyenv version
-pyenv: command not found
+practice-env (set by PYENV_VERSION environment variable)
 
 $ python -m pytest --version
 pytest 9.1.1
@@ -218,7 +218,7 @@ def test_rgb_histograms_four_channels_raises_value_error():
 ```text
 $ python -m pytest -q
 .........                                                                [100%]
-9 passed in 0.36s
+9 passed in 0.07s
 ```
 
 - FAILの有無と対処（例：異常系が `DID NOT RAISE` となり、入力契約の確認を追加した）：通常の最終実行ではFAILはなく、9件すべて成功した。意図的にチャンネル順を入れ替えた検証ではFAILを確認し、バグを元に戻してからテストを再実行した。
